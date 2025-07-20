@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { groq, streamText } from "@/lib/ai-client";
 import { getRecommendedModel } from "@/lib/groq-models";
+import { chatDB } from "@/lib/indexeddb";
 
 interface ModelStats {
   tokensPerSecond: number;
@@ -37,28 +38,104 @@ export function ChatInterface() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(getRecommendedModel().id);
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: "1",
-      title: "Getting Started",
-      timestamp: "2 minutes ago",
-      messages: [
-        {
-          id: "1",
-          content: "Hello! I'm your AI assistant powered by Groq. How can I help you today?",
-          role: "assistant",
-          timestamp: "2 minutes ago",
-        },
-      ],
-    },
-  ]);
-  const [activeConversationId, setActiveConversationId] = useState<string>("1");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
   const messages = activeConversation?.messages || [];
+
+  // Initialize IndexedDB and load data
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        await chatDB.init();
+        
+        // Load saved conversations
+        const savedConversations = await chatDB.getAllConversations();
+        
+        // Load saved model preference
+        const savedModel = await chatDB.getSetting('selectedModel');
+        if (savedModel) {
+          setSelectedModel(savedModel);
+        }
+
+        if (savedConversations.length > 0) {
+          setConversations(savedConversations);
+          setActiveConversationId(savedConversations[0].id);
+        } else {
+          // Create default conversation if none exist
+          const defaultConversation: Conversation = {
+            id: "1",
+            title: "Getting Started",
+            timestamp: new Date().toISOString(),
+            messages: [
+              {
+                id: "1",
+                content: "Hello! I'm your AI assistant powered by Groq. How can I help you today?",
+                role: "assistant",
+                timestamp: new Date().toLocaleString(),
+              },
+            ],
+          };
+          
+          setConversations([defaultConversation]);
+          setActiveConversationId(defaultConversation.id);
+          await chatDB.saveConversation(defaultConversation);
+        }
+      } catch (error) {
+        console.error("Failed to initialize app:", error);
+        toast({
+          title: "Initialization Error",
+          description: "Failed to load saved data. Starting fresh.",
+          variant: "destructive",
+        });
+        
+        // Fallback to default state
+        const defaultConversation: Conversation = {
+          id: "1",
+          title: "Getting Started",
+          timestamp: new Date().toISOString(),
+          messages: [
+            {
+              id: "1",
+              content: "Hello! I'm your AI assistant powered by Groq. How can I help you today?",
+              role: "assistant",
+              timestamp: new Date().toLocaleString(),
+            },
+          ],
+        };
+        
+        setConversations([defaultConversation]);
+        setActiveConversationId(defaultConversation.id);
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+
+    initializeApp();
+  }, [toast]);
+
+  // Save conversations to IndexedDB whenever they change
+  useEffect(() => {
+    if (!isInitializing && activeConversation) {
+      chatDB.saveConversation(activeConversation).catch(error => {
+        console.error("Failed to save conversation:", error);
+      });
+    }
+  }, [activeConversation, isInitializing]);
+
+  // Save model selection to IndexedDB
+  useEffect(() => {
+    if (!isInitializing) {
+      chatDB.saveSetting('selectedModel', selectedModel).catch(error => {
+        console.error("Failed to save model setting:", error);
+      });
+    }
+  }, [selectedModel, isInitializing]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -82,7 +159,7 @@ export function ChatInterface() {
       id: aiMessageId,
       content: "",
       role: "assistant",
-      timestamp: "now",
+      timestamp: new Date().toLocaleString(),
     };
 
     // Add empty AI message to conversation
@@ -216,13 +293,13 @@ export function ChatInterface() {
   };
 
   const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return;
+    if (!content.trim() || isLoading || !activeConversationId) return;
 
     const newUserMessage: Message = {
       id: Date.now().toString(),
       content,
       role: "user",
-      timestamp: "now",
+      timestamp: new Date().toLocaleString(),
     };
 
     // Add user message
@@ -255,17 +332,17 @@ export function ChatInterface() {
     });
   };
 
-  const handleNewConversation = () => {
+  const handleNewConversation = async () => {
     const newConversation: Conversation = {
       id: Date.now().toString(),
       title: `New Chat ${conversations.length + 1}`,
-      timestamp: "now",
+      timestamp: new Date().toISOString(),
       messages: [
         {
           id: Date.now().toString(),
           content: "Hello! I'm your AI assistant powered by Groq. How can I help you today?",
           role: "assistant",
-          timestamp: "now",
+          timestamp: new Date().toLocaleString(),
         },
       ],
     };
@@ -273,6 +350,13 @@ export function ChatInterface() {
     setConversations(prev => [newConversation, ...prev]);
     setActiveConversationId(newConversation.id);
     setSidebarOpen(false);
+    
+    // Save to IndexedDB
+    try {
+      await chatDB.saveConversation(newConversation);
+    } catch (error) {
+      console.error("Failed to save new conversation:", error);
+    }
   };
 
   const handleConversationSelect = (id: string) => {
@@ -280,35 +364,78 @@ export function ChatInterface() {
     setSidebarOpen(false);
   };
 
-  const handleDeleteConversation = (id: string) => {
-    setConversations(prev => prev.filter(conv => conv.id !== id));
-    
-    // If we deleted the active conversation, switch to another one or create new
-    if (activeConversationId === id) {
-      const remainingConversations = conversations.filter(conv => conv.id !== id);
-      if (remainingConversations.length > 0) {
-        setActiveConversationId(remainingConversations[0].id);
-      } else {
-        handleNewConversation();
-      }
+  const handleDeleteConversation = async (id: string) => {
+    if (conversations.length <= 1) {
+      toast({
+        title: "Cannot delete",
+        description: "You must have at least one conversation.",
+        variant: "destructive",
+      });
+      return;
     }
 
-    toast({
-      title: "Conversation deleted",
-      description: "The conversation has been permanently deleted.",
-    });
+    setConversations(prev => prev.filter(conv => conv.id !== id));
+    
+    if (activeConversationId === id) {
+      const remainingConversations = conversations.filter(conv => conv.id !== id);
+      setActiveConversationId(remainingConversations[0]?.id || null);
+    }
+
+    // Delete from IndexedDB
+    try {
+      await chatDB.deleteConversation(id);
+    } catch (error) {
+      console.error("Failed to delete conversation:", error);
+    }
   };
 
-  const handleClearAllChats = () => {
-    setConversations([]);
-    handleNewConversation();
-    setSettingsOpen(false);
-    
-    toast({
-      title: "All conversations cleared",
-      description: "All chat history has been permanently deleted.",
-    });
+  const handleClearAllChats = async () => {
+    try {
+      await chatDB.clearAllConversations();
+      
+      // Create a new default conversation
+      const defaultConversation: Conversation = {
+        id: Date.now().toString(),
+        title: "Getting Started",
+        timestamp: new Date().toISOString(),
+        messages: [
+          {
+            id: Date.now().toString(),
+            content: "Hello! I'm your AI assistant powered by Groq. How can I help you today?",
+            role: "assistant",
+            timestamp: new Date().toLocaleString(),
+          },
+        ],
+      };
+
+      setConversations([defaultConversation]);
+      setActiveConversationId(defaultConversation.id);
+      await chatDB.saveConversation(defaultConversation);
+
+      toast({
+        title: "All chats cleared",
+        description: "All conversations have been deleted.",
+      });
+    } catch (error) {
+      console.error("Failed to clear chats:", error);
+      toast({
+        title: "Error",
+        description: "Failed to clear conversations.",
+        variant: "destructive",
+      });
+    }
   };
+
+  if (isInitializing) {
+    return (
+      <div className="flex h-screen bg-background items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-8 h-8 border-2 border-primary border-r-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground">Loading your conversations...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-background">
@@ -327,8 +454,6 @@ export function ChatInterface() {
         isOpen={settingsOpen}
         onOpenChange={setSettingsOpen}
         onClearAllChats={handleClearAllChats}
-        selectedModel={selectedModel}
-        onModelChange={handleModelChange}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -336,6 +461,8 @@ export function ChatInterface() {
           title={activeConversation?.title || "AI Chat Assistant"}
           conversationCount={conversations.length}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+          selectedModel={selectedModel}
+          onModelChange={handleModelChange}
         />
 
         {/* Messages Area */}

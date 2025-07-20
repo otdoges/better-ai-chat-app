@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { ReasoningDisplay } from "./ReasoningDisplay";
 
 interface ModelStats {
   tokensPerSecond: number;
@@ -23,6 +24,25 @@ interface ChatMessageProps {
   };
   isStreaming?: boolean;
 }
+
+// Function to parse and extract thinking content
+const parseMessageContent = (content: string) => {
+  // Extract thinking content from <think> tags
+  const thinkRegex = /<think>([\s\S]*?)<\/think>/gi;
+  let thinkingContent = '';
+  let cleanedContent = content;
+
+  let match;
+  while ((match = thinkRegex.exec(content)) !== null) {
+    thinkingContent += match[1].trim() + '\n\n';
+    cleanedContent = cleanedContent.replace(match[0], '');
+  }
+
+  return {
+    content: cleanedContent.trim(),
+    thinking: thinkingContent.trim()
+  };
+};
 
 // Function to parse and render message content with syntax highlighting
 const renderMessageContent = (content: string, isStreaming: boolean, toast: any) => {
@@ -153,6 +173,9 @@ export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) 
   const { toast } = useToast();
   const isUser = message.role === "user";
 
+  // Parse message content to extract thinking (including during streaming)
+  const { content: cleanedContent, thinking } = parseMessageContent(message.content);
+
   const copyStats = () => {
     if (!message.stats) return;
     
@@ -204,8 +227,16 @@ Total Tokens: ${message.stats.totalTokens}`;
           </span>
         </div>
         
+        {/* Reasoning Display - show during streaming and after completion for assistant messages */}
+        {!isUser && thinking && (
+          <ReasoningDisplay 
+            thinkingContent={thinking} 
+            isStreaming={isStreaming}
+          />
+        )}
+
         <div className="prose prose-sm max-w-none dark:prose-invert">
-          {renderMessageContent(message.content, isStreaming, toast)}
+          {renderMessageContent(cleanedContent, isStreaming, toast)}
         </div>
 
         {/* Model Statistics - only show for assistant messages with stats */}
