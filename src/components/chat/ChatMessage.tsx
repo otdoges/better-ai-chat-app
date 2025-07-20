@@ -2,6 +2,8 @@ import { Bot, User, Copy, Clock, Zap, Timer, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface ModelStats {
   tokensPerSecond: number;
@@ -21,6 +23,131 @@ interface ChatMessageProps {
   };
   isStreaming?: boolean;
 }
+
+// Function to parse and render message content with syntax highlighting
+const renderMessageContent = (content: string, isStreaming: boolean, toast: any) => {
+  // Regex to match code blocks with optional language specification
+  const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
+  const parts: Array<{ type: 'text' | 'code'; content: string; language?: string }> = [];
+  
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRegex.exec(content)) !== null) {
+    // Add text before code block
+    if (match.index > lastIndex) {
+      parts.push({
+        type: 'text',
+        content: content.slice(lastIndex, match.index)
+      });
+    }
+
+    // Add code block
+    parts.push({
+      type: 'code',
+      content: match[2] || '',
+      language: match[1] || 'text'
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text after last code block
+  if (lastIndex < content.length) {
+    parts.push({
+      type: 'text',
+      content: content.slice(lastIndex)
+    });
+  }
+
+  // If no code blocks found, treat entire content as text
+  if (parts.length === 0) {
+    parts.push({
+      type: 'text',
+      content: content
+    });
+  }
+
+  const copyCodeToClipboard = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => {
+      toast({
+        title: "Code copied",
+        description: "Code block copied to clipboard",
+      });
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      {parts.map((part, index) => {
+        if (part.type === 'code') {
+          return (
+            <div key={index} className="relative group/code">
+              <div className="absolute top-2 right-12 text-xs text-muted-foreground/60 bg-background/80 px-2 py-1 rounded">
+                {part.language}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => copyCodeToClipboard(part.content)}
+                className="absolute top-2 right-2 opacity-0 group-hover/code:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-background/80"
+              >
+                <Copy className="h-3 w-3" />
+              </Button>
+              <SyntaxHighlighter
+                language={part.language}
+                style={oneDark}
+                customStyle={{
+                  margin: 0,
+                  borderRadius: '0.75rem',
+                  fontSize: '0.875rem',
+                  border: '1px solid hsl(var(--border))',
+                  paddingTop: '2.5rem', // Extra padding for the language label and copy button
+                }}
+                codeTagProps={{
+                  style: {
+                    fontSize: '0.875rem',
+                    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                  }
+                }}
+              >
+                {part.content}
+              </SyntaxHighlighter>
+            </div>
+          );
+        } else {
+          // Render inline code with backticks
+          const inlineCodeRegex = /`([^`]+)`/g;
+          const textParts = part.content.split(inlineCodeRegex);
+          
+          return (
+            <div key={index} className="text-foreground/90 leading-7 whitespace-pre-wrap text-sm">
+              {textParts.map((textPart, textIndex) => {
+                if (textIndex % 2 === 1) {
+                  // This is inline code
+                  return (
+                    <code
+                      key={textIndex}
+                      className="bg-muted/50 px-1.5 py-1 rounded text-sm font-medium"
+                    >
+                      {textPart}
+                    </code>
+                  );
+                } else {
+                  // This is regular text
+                  return textPart;
+                }
+              })}
+            </div>
+          );
+        }
+      })}
+      {isStreaming && (
+        <span className="ml-1 inline-block h-3 w-1 bg-primary animate-pulse rounded-sm" />
+      )}
+    </div>
+  );
+};
 
 export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) {
   const { toast } = useToast();
@@ -77,13 +204,8 @@ Total Tokens: ${message.stats.totalTokens}`;
           </span>
         </div>
         
-        <div className="prose prose-sm max-w-none dark:prose-invert prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-pre:rounded-lg prose-code:bg-muted/50 prose-code:px-1.5 prose-code:py-1 prose-code:rounded prose-code:text-sm prose-code:font-medium">
-          <div className="text-foreground/90 leading-7 whitespace-pre-wrap text-sm">
-            {message.content}
-            {isStreaming && (
-              <span className="ml-1 inline-block h-3 w-1 bg-primary animate-pulse rounded-sm" />
-            )}
-          </div>
+        <div className="prose prose-sm max-w-none dark:prose-invert">
+          {renderMessageContent(message.content, isStreaming, toast)}
         </div>
 
         {/* Model Statistics - only show for assistant messages with stats */}
