@@ -3,7 +3,9 @@ import { ChatSidebar } from "./ChatSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
+import { SettingsDialog } from "./SettingsDialog";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: string;
@@ -20,7 +22,9 @@ interface Conversation {
 }
 
 export function ChatInterface() {
+  const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: "1",
@@ -139,6 +143,36 @@ export function ChatInterface() {
     setSidebarOpen(false);
   };
 
+  const handleDeleteConversation = (id: string) => {
+    setConversations(prev => prev.filter(conv => conv.id !== id));
+    
+    // If we deleted the active conversation, switch to another one or create new
+    if (activeConversationId === id) {
+      const remainingConversations = conversations.filter(conv => conv.id !== id);
+      if (remainingConversations.length > 0) {
+        setActiveConversationId(remainingConversations[0].id);
+      } else {
+        handleNewConversation();
+      }
+    }
+
+    toast({
+      title: "Conversation deleted",
+      description: "The conversation has been permanently deleted.",
+    });
+  };
+
+  const handleClearAllChats = () => {
+    setConversations([]);
+    handleNewConversation();
+    setSettingsOpen(false);
+    
+    toast({
+      title: "All conversations cleared",
+      description: "All chat history has been permanently deleted.",
+    });
+  };
+
   return (
     <div className="flex h-screen bg-chat-bg">
       <ChatSidebar
@@ -148,6 +182,14 @@ export function ChatInterface() {
         activeConversationId={activeConversationId}
         onConversationSelect={handleConversationSelect}
         onNewConversation={handleNewConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+
+      <SettingsDialog
+        isOpen={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onClearAllChats={handleClearAllChats}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">

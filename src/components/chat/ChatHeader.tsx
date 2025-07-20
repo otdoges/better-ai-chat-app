@@ -5,13 +5,13 @@ interface ChatHeaderProps {
   conversationCount?: number;
 }
 
-export function ChatHeader({ title = "AI Chat Assistant", conversationCount }: ChatHeaderProps) {
+export function ChatHeader({ title = "T3 Chat", conversationCount }: ChatHeaderProps) {
   return (
-    <div className="border-b border-border/50 bg-card/50 backdrop-blur-sm sticky top-0 z-30">
+    <div className="border-b border-border bg-card backdrop-blur-sm sticky top-0 z-30">
       <div className="mx-auto max-w-4xl px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-primary shadow-elegant">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary shadow-card">
               <MessageSquare className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>

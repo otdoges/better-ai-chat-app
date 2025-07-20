@@ -39,7 +39,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="border-t border-border/50 bg-chat-input/50 backdrop-blur-sm">
+    <div className="border-t border-border bg-card backdrop-blur-sm">
       <div className="mx-auto max-w-4xl p-4">
         <form onSubmit={handleSubmit} className="relative flex items-end space-x-3">
           <div className="flex-1">
@@ -50,7 +50,7 @@ export function ChatInput({
               placeholder="Type your message here..."
               disabled={disabled}
               className={cn(
-                "min-h-[60px] max-h-32 resize-none bg-card border-border/50 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200",
+                "min-h-[60px] max-h-32 resize-none bg-chat-input border-border text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200",
                 "pr-12" // Space for the button
               )}
             />
@@ -62,7 +62,7 @@ export function ChatInput({
                 type="button"
                 size="sm"
                 onClick={handleStop}
-                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground h-10 w-10 p-0 rounded-full shadow-elegant transition-all duration-200 hover:scale-105"
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground h-10 w-10 p-0 rounded-full shadow-card transition-all duration-200 hover:scale-105"
               >
                 <Square className="h-4 w-4" />
               </Button>
@@ -71,7 +71,7 @@ export function ChatInput({
                 type="submit"
                 size="sm"
                 disabled={!message.trim() || disabled}
-                className="bg-gradient-primary hover:opacity-90 text-primary-foreground h-10 w-10 p-0 rounded-full shadow-elegant transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground h-10 w-10 p-0 rounded-full shadow-card transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 <Send className="h-4 w-4" />
               </Button>

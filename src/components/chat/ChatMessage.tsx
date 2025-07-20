@@ -17,17 +17,17 @@ export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) 
   return (
     <div
       className={cn(
-        "group relative flex items-start space-x-4 p-4 hover:bg-chat-message-hover/50 transition-colors duration-200 animate-fade-in",
-        !isUser && "bg-chat-message-ai/30"
+        "group relative flex items-start space-x-4 p-4 hover:bg-chat-message-hover transition-colors duration-200 animate-fade-in",
+        !isUser && "bg-chat-message-ai"
       )}
     >
       {/* Avatar */}
       <div
         className={cn(
-          "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg shadow-message",
+          "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg shadow-card",
           isUser
-            ? "bg-gradient-primary text-primary-foreground"
-            : "bg-card border border-border/50 text-muted-foreground"
+            ? "bg-primary text-primary-foreground"
+            : "bg-card border border-border text-muted-foreground"
         )}
       >
         {isUser ? (
