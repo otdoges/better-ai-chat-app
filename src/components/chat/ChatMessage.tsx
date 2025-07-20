@@ -17,17 +17,17 @@ export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) 
   return (
     <div
       className={cn(
-        "group relative flex items-start space-x-4 p-4 hover:bg-chat-message-hover transition-colors duration-200 animate-fade-in",
-        !isUser && "bg-chat-message-ai"
+        "group relative flex items-start space-x-4 p-6 transition-all duration-200 hover:bg-muted/30 animate-fade-in border-b border-border/20",
+        isUser && "bg-muted/10"
       )}
     >
       {/* Avatar */}
       <div
         className={cn(
-          "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg shadow-card",
+          "flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-lg border backdrop-blur-sm transition-all duration-200",
           isUser
-            ? "bg-primary text-primary-foreground"
-            : "bg-card border border-border text-muted-foreground"
+            ? "bg-primary text-primary-foreground border-primary/20 shadow-lg shadow-primary/10"
+            : "bg-background border-border/50 text-muted-foreground hover:bg-muted/50"
         )}
       >
         {isUser ? (
@@ -38,23 +38,23 @@ export function ChatMessage({ message, isStreaming = false }: ChatMessageProps) 
       </div>
 
       {/* Message Content */}
-      <div className="flex-1 space-y-2 overflow-hidden">
+      <div className="flex-1 space-y-3 overflow-hidden">
         <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-sm font-medium text-foreground/90">
             {isUser ? "You" : "AI Assistant"}
           </p>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground/70">
             {message.timestamp}
           </span>
         </div>
         
-        <div className="prose prose-sm max-w-none text-foreground prose-pre:bg-muted prose-pre:border prose-pre:border-border/50 prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-sm">
-          <p className="leading-relaxed whitespace-pre-wrap">
+        <div className="prose prose-sm max-w-none dark:prose-invert prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50 prose-pre:rounded-lg prose-code:bg-muted/50 prose-code:px-1.5 prose-code:py-1 prose-code:rounded prose-code:text-sm prose-code:font-medium">
+          <div className="text-foreground/90 leading-7 whitespace-pre-wrap text-sm">
             {message.content}
             {isStreaming && (
-              <span className="ml-1 inline-block h-3 w-2 bg-primary animate-pulse" />
+              <span className="ml-1 inline-block h-3 w-1 bg-primary animate-pulse rounded-sm" />
             )}
-          </p>
+          </div>
         </div>
       </div>
     </div>

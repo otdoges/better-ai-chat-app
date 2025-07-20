@@ -6,6 +6,8 @@ import { ChatInput } from "./ChatInput";
 import { SettingsDialog } from "./SettingsDialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { groq, streamText } from "@/lib/ai-client";
+import { getRecommendedModel } from "@/lib/groq-models";
 
 interface Message {
   id: string;
@@ -25,6 +27,7 @@ export function ChatInterface() {
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(getRecommendedModel().id);
   const [conversations, setConversations] = useState<Conversation[]>([
     {
       id: "1",
@@ -33,7 +36,7 @@ export function ChatInterface() {
       messages: [
         {
           id: "1",
-          content: "Hello! I'm your AI assistant. How can I help you today?",
+          content: "Hello! I'm your AI assistant powered by Groq. How can I help you today?",
           role: "assistant",
           timestamp: "2 minutes ago",
         },
@@ -56,19 +59,106 @@ export function ChatInterface() {
     scrollToBottom();
   }, [messages]);
 
-  const generateResponse = async (userMessage: string): Promise<string> => {
-    // Simulate AI response with realistic delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-    
-    const responses = [
-      "That's a great question! Let me think about that for a moment. Based on what you've mentioned, I believe the best approach would be to consider multiple perspectives and weigh the various factors involved.",
-      "I understand what you're asking. This is definitely something worth exploring further. Would you like me to break this down into smaller, more manageable parts?",
-      "Interesting point! This reminds me of similar situations where the key is to find the right balance. Let me share some thoughts that might be helpful.",
-      "Thank you for sharing that with me. I can see why this would be important to you. Here's how I would approach this situation...",
-      "That's a complex topic with many nuances. Let me provide you with a comprehensive overview that covers the main aspects you should consider.",
-    ];
-    
-    return responses[Math.floor(Math.random() * responses.length)];
+  const generateResponse = async (userMessage: string, conversationHistory: Message[]): Promise<void> => {
+    const aiMessageId = (Date.now() + 1).toString();
+    setStreamingMessageId(aiMessageId);
+
+    // Create empty AI message to start streaming into
+    const aiMessage: Message = {
+      id: aiMessageId,
+      content: "",
+      role: "assistant",
+      timestamp: "now",
+    };
+
+    // Add empty AI message to conversation
+    setConversations(prev =>
+      prev.map(conv =>
+        conv.id === activeConversationId
+          ? { ...conv, messages: [...conv.messages, aiMessage] }
+          : conv
+      )
+    );
+
+    try {
+      // Prepare messages for the API
+      const apiMessages = conversationHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      // Add the new user message
+      apiMessages.push({
+        role: "user" as const,
+        content: userMessage,
+      });
+
+      // Check if API key is configured
+      if (!import.meta.env.VITE_GROQ_API_KEY || import.meta.env.VITE_GROQ_API_KEY === 'your_groq_api_key_here') {
+        throw new Error('Groq API key not configured. Please set VITE_GROQ_API_KEY in your .env file.');
+      }
+
+      // Stream the response
+      const { textStream } = await streamText({
+        model: groq(selectedModel),
+        messages: apiMessages,
+        temperature: 0.7,
+        maxTokens: 2000,
+      });
+
+      let fullContent = "";
+
+      for await (const delta of textStream) {
+        fullContent += delta;
+        
+        // Update the streaming message content
+        setConversations(prev =>
+          prev.map(conv =>
+            conv.id === activeConversationId
+              ? {
+                  ...conv,
+                  messages: conv.messages.map(msg =>
+                    msg.id === aiMessageId
+                      ? { ...msg, content: fullContent }
+                      : msg
+                  ),
+                }
+              : conv
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Error generating response:", error);
+      
+      // Update message with error
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === activeConversationId
+            ? {
+                ...conv,
+                messages: conv.messages.map(msg =>
+                  msg.id === aiMessageId
+                    ? { 
+                        ...msg, 
+                        content: error instanceof Error 
+                          ? `Error: ${error.message}` 
+                          : "Sorry, I encountered an error while processing your request. Please try again."
+                      }
+                    : msg
+                ),
+              }
+            : conv
+        )
+      );
+
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate response",
+        variant: "destructive",
+      });
+    } finally {
+      setStreamingMessageId(null);
+    }
   };
 
   const handleSendMessage = async (content: string) => {
@@ -93,29 +183,22 @@ export function ChatInterface() {
     setIsLoading(true);
 
     try {
-      // Generate AI response
-      const responseContent = await generateResponse(content);
-      
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: responseContent,
-        role: "assistant",
-        timestamp: "now",
-      };
-
-      // Add AI message
-      setConversations(prev =>
-        prev.map(conv =>
-          conv.id === activeConversationId
-            ? { ...conv, messages: [...conv.messages, aiMessage] }
-            : conv
-        )
-      );
+      // Get conversation history for context
+      const currentMessages = activeConversation?.messages || [];
+      await generateResponse(content, currentMessages);
     } catch (error) {
-      console.error("Error generating response:", error);
+      console.error("Error in handleSendMessage:", error);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleModelChange = (modelId: string) => {
+    setSelectedModel(modelId);
+    toast({
+      title: "Model changed",
+      description: `Switched to ${modelId}`,
+    });
   };
 
   const handleNewConversation = () => {
@@ -126,7 +209,7 @@ export function ChatInterface() {
       messages: [
         {
           id: Date.now().toString(),
-          content: "Hello! I'm your AI assistant. How can I help you today?",
+          content: "Hello! I'm your AI assistant powered by Groq. How can I help you today?",
           role: "assistant",
           timestamp: "now",
         },
@@ -174,7 +257,7 @@ export function ChatInterface() {
   };
 
   return (
-    <div className="flex h-screen bg-chat-bg">
+    <div className="flex h-screen bg-background">
       <ChatSidebar
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
@@ -190,12 +273,15 @@ export function ChatInterface() {
         isOpen={settingsOpen}
         onOpenChange={setSettingsOpen}
         onClearAllChats={handleClearAllChats}
+        selectedModel={selectedModel}
+        onModelChange={handleModelChange}
       />
 
       <div className="flex flex-1 flex-col overflow-hidden">
         <ChatHeader
           title={activeConversation?.title || "AI Chat Assistant"}
           conversationCount={conversations.length}
+          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         />
 
         {/* Messages Area */}
@@ -203,16 +289,22 @@ export function ChatInterface() {
           <div className="mx-auto max-w-4xl">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full p-8">
-                <div className="text-center space-y-4 animate-fade-in">
-                  <div className="w-16 h-16 mx-auto bg-gradient-primary rounded-full flex items-center justify-center shadow-elegant">
-                    <svg className="w-8 h-8 text-primary-foreground" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                <div className="text-center space-y-6 animate-fade-in">
+                  <div className="w-20 h-20 mx-auto bg-gradient-to-br from-primary/20 to-primary/10 rounded-2xl flex items-center justify-center border border-border/50 backdrop-blur-sm">
+                    <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>
-                  <h3 className="text-xl font-semibold text-foreground">Ready to Chat!</h3>
-                  <p className="text-muted-foreground max-w-md">
-                    Start a conversation by typing your message below. I'm here to help with any questions or tasks you might have.
-                  </p>
+                  <div className="space-y-3">
+                    <h3 className="text-2xl font-semibold text-foreground">Ready to Chat!</h3>
+                    <p className="text-muted-foreground max-w-md leading-relaxed">
+                      Start a conversation by typing your message below. I'm here to help with any questions or tasks you might have.
+                    </p>
+                  </div>
+                  <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted/50 border border-border/50 text-xs text-muted-foreground">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                    Currently using: {selectedModel}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -225,12 +317,12 @@ export function ChatInterface() {
                   />
                 ))}
                 {isLoading && (
-                  <div className="flex items-start space-x-4 p-4 bg-chat-message-ai/30 animate-fade-in">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-card border border-border/50">
+                  <div className="flex items-start space-x-4 p-6 animate-fade-in">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted border border-border/50">
                       <div className="flex space-x-1">
-                        <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                        <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                        <div className="w-1 h-1 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">AI is thinking...</div>
