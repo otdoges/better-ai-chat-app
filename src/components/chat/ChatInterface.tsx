@@ -9,11 +9,20 @@ import { useToast } from "@/hooks/use-toast";
 import { groq, streamText } from "@/lib/ai-client";
 import { getRecommendedModel } from "@/lib/groq-models";
 
+interface ModelStats {
+  tokensPerSecond: number;
+  timeToFirstToken: number;
+  totalTime: number;
+  totalTokens: number;
+  model: string;
+}
+
 interface Message {
   id: string;
   content: string;
   role: "user" | "assistant";
   timestamp: string;
+  stats?: ModelStats;
 }
 
 interface Conversation {
@@ -63,6 +72,11 @@ export function ChatInterface() {
     const aiMessageId = (Date.now() + 1).toString();
     setStreamingMessageId(aiMessageId);
 
+    // Timing tracking
+    const startTime = performance.now();
+    let firstTokenTime: number | null = null;
+    let tokenCount = 0;
+
     // Create empty AI message to start streaming into
     const aiMessage: Message = {
       id: aiMessageId,
@@ -109,6 +123,15 @@ export function ChatInterface() {
       let fullContent = "";
 
       for await (const delta of textStream) {
+        // Track first token timing
+        if (firstTokenTime === null) {
+          firstTokenTime = performance.now();
+        }
+
+        // Rough token counting (approximation - each word or punctuation mark as a token)
+        const deltaTokens = delta.split(/\s+/).filter(t => t.length > 0).length;
+        tokenCount += deltaTokens;
+
         fullContent += delta;
         
         // Update the streaming message content
@@ -127,6 +150,37 @@ export function ChatInterface() {
           )
         );
       }
+
+      // Calculate final stats
+      const endTime = performance.now();
+      const totalTime = (endTime - startTime) / 1000; // Convert to seconds
+      const timeToFirstToken = firstTokenTime ? (firstTokenTime - startTime) / 1000 : 0;
+      const tokensPerSecond = tokenCount > 0 ? tokenCount / totalTime : 0;
+
+      const stats: ModelStats = {
+        tokensPerSecond: Math.round(tokensPerSecond * 100) / 100,
+        timeToFirstToken: Math.round(timeToFirstToken * 1000) / 1000,
+        totalTime: Math.round(totalTime * 1000) / 1000,
+        totalTokens: tokenCount,
+        model: selectedModel,
+      };
+
+      // Update message with final stats
+      setConversations(prev =>
+        prev.map(conv =>
+          conv.id === activeConversationId
+            ? {
+                ...conv,
+                messages: conv.messages.map(msg =>
+                  msg.id === aiMessageId
+                    ? { ...msg, stats }
+                    : msg
+                ),
+              }
+            : conv
+        )
+      );
+
     } catch (error) {
       console.error("Error generating response:", error);
       
