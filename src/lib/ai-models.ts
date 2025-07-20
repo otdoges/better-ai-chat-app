@@ -8,7 +8,7 @@ export interface AIModel {
   provider: "groq" | "google";
   developer: string;
   category: "production" | "preview" | "preview-system";
-  capabilities: ("chat" | "reasoning" | "vision" | "audio" | "tts" | "guard" | "tools")[];
+  capabilities: ("chat" | "reasoning" | "vision" | "audio" | "tts" | "guard" | "tools" | "search")[];
   isRecommended?: boolean;
   isDeprecated?: boolean;
   replacementModel?: string;
@@ -204,22 +204,22 @@ export const AI_MODELS: AIModel[] = [
   {
     id: "compound-beta",
     name: "Compound Beta",
-    description: "Groq's experimental compound system for enhanced performance",
+    description: "Groq's experimental compound system with web search grounding and tool orchestration",
     contextWindow: 128000,
     provider: "groq",
     developer: "Groq",
     category: "preview-system",
-    capabilities: ["chat", "reasoning", "tools"],
+    capabilities: ["chat", "reasoning", "tools", "search"],
   },
   {
     id: "compound-beta-mini",
     name: "Compound Beta Mini",
-    description: "Lighter version of Groq's compound system for faster responses",
+    description: "Lighter version of Groq's compound system with web search and low-latency performance",
     contextWindow: 128000,
     provider: "groq",
     developer: "Groq",
     category: "preview-system",
-    capabilities: ["chat", "tools"],
+    capabilities: ["chat", "tools", "search"],
   },
 
   // Audio Models (Groq)
@@ -309,6 +309,12 @@ export const getReasoningModels = (): AIModel[] => {
 export const getVisionModels = (): AIModel[] => {
   return AI_MODELS.filter(model => 
     model.capabilities.includes("vision") && !model.isDeprecated
+  );
+};
+
+export const getSearchModels = (): AIModel[] => {
+  return AI_MODELS.filter(model => 
+    model.capabilities.includes("search") && !model.isDeprecated
   );
 };
 
