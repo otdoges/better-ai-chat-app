@@ -1,4 +1,4 @@
-import { Settings, Trash2, Moon, Sun } from "lucide-react";
+import { Settings, Trash2, Moon, Sun, Key, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
@@ -23,6 +24,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { chatDB } from "@/lib/indexeddb";
+import { useToast } from "@/hooks/use-toast";
 
 interface SettingsDialogProps {
   isOpen: boolean;
@@ -36,11 +39,52 @@ export function SettingsDialog({
   onClearAllChats
 }: SettingsDialogProps) {
   const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
   const [mounted, setMounted] = useState(false);
+  const [groqApiKey, setGroqApiKey] = useState("");
+  const [googleApiKey, setGoogleApiKey] = useState("");
+  const [showGroqKey, setShowGroqKey] = useState(false);
+  const [showGoogleKey, setShowGoogleKey] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    
+    // Load saved API keys
+    const loadApiKeys = async () => {
+      try {
+        const savedGroqKey = await chatDB.getSetting('groqApiKey');
+        const savedGoogleKey = await chatDB.getSetting('googleApiKey');
+        
+        if (savedGroqKey) setGroqApiKey(savedGroqKey);
+        if (savedGoogleKey) setGoogleApiKey(savedGoogleKey);
+      } catch (error) {
+        console.error('Failed to load API keys:', error);
+      }
+    };
+    
+    if (isOpen) {
+      loadApiKeys();
+    }
+  }, [isOpen]);
+
+  const saveApiKey = async (type: 'groq' | 'google', key: string) => {
+    try {
+      const settingKey = type === 'groq' ? 'groqApiKey' : 'googleApiKey';
+      await chatDB.saveSetting(settingKey, key);
+      
+      toast({
+        title: "API key saved",
+        description: `${type === 'groq' ? 'Groq' : 'Google'} API key has been saved successfully.`,
+      });
+    } catch (error) {
+      console.error('Failed to save API key:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save API key.",
+        variant: "destructive",
+      });
+    }
+  };
 
   if (!mounted) {
     return null;
@@ -85,6 +129,98 @@ export function SettingsDialog({
                 checked={isDarkMode}
                 onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
               />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* API Keys */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium text-foreground">API Keys</Label>
+            
+            {/* Groq API Key */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center">
+                <Key className="h-3 w-3 mr-1" />
+                Groq API Key (Optional - overrides .env)
+              </Label>
+              <div className="flex space-x-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showGroqKey ? "text" : "password"}
+                    value={groqApiKey}
+                    onChange={(e) => setGroqApiKey(e.target.value)}
+                    placeholder="Enter your Groq API key..."
+                    className="text-xs pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowGroqKey(!showGroqKey)}
+                    className="absolute right-0 top-0 h-full px-3"
+                  >
+                    {showGroqKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => saveApiKey('groq', groqApiKey)}
+                  disabled={!groqApiKey.trim()}
+                  className="text-xs"
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+
+            {/* Google API Key */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground flex items-center">
+                <Key className="h-3 w-3 mr-1" />
+                Google AI API Key (Required for Gemini models)
+              </Label>
+              <div className="flex space-x-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showGoogleKey ? "text" : "password"}
+                    value={googleApiKey}
+                    onChange={(e) => setGoogleApiKey(e.target.value)}
+                    placeholder="Enter your Google AI API key..."
+                    className="text-xs pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowGoogleKey(!showGoogleKey)}
+                    className="absolute right-0 top-0 h-full px-3"
+                  >
+                    {showGoogleKey ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </Button>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => saveApiKey('google', googleApiKey)}
+                  disabled={!googleApiKey.trim()}
+                  className="text-xs"
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-xs text-muted-foreground p-3 bg-muted/30 rounded-lg border border-border/30">
+              <p>
+                🔑 <strong>API Keys:</strong> Get your Groq API key from{' '}
+                <a href="https://console.groq.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  console.groq.com
+                </a>{' '}
+                and Google AI API key from{' '}
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  aistudio.google.com
+                </a>
+              </p>
             </div>
           </div>
 

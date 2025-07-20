@@ -21,6 +21,7 @@ interface ChatMessageProps {
     role: "user" | "assistant";
     timestamp: string;
     stats?: ModelStats;
+    images?: string[];
   };
   isStreaming?: boolean;
 }
@@ -238,6 +239,28 @@ Total Tokens: ${message.stats.totalTokens}`;
         <div className="prose prose-sm max-w-none dark:prose-invert">
           {renderMessageContent(cleanedContent, isStreaming, toast)}
         </div>
+
+        {/* Image Gallery - show images for user messages */}
+        {message.images && message.images.length > 0 && (
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2 max-w-md">
+            {message.images.map((image, index) => (
+              <div key={index} className="relative group">
+                <img
+                  src={image}
+                  alt={`Image ${index + 1}`}
+                  className="w-full h-24 object-cover rounded-lg border border-border/50 cursor-pointer hover:scale-105 transition-transform duration-200"
+                  onClick={() => {
+                    // Open image in new tab
+                    const newWindow = window.open();
+                    if (newWindow) {
+                      newWindow.document.write(`<img src="${image}" style="max-width: 100%; height: auto;" />`);
+                    }
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Model Statistics - only show for assistant messages with stats */}
         {!isUser && message.stats && !isStreaming && (

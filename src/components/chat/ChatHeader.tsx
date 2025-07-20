@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getTextModels, GroqModel } from "@/lib/groq-models";
+import { getTextModels, AIModel } from "@/lib/ai-models";
 import { chatDB } from "@/lib/indexeddb";
 import { useToast } from "@/hooks/use-toast";
 import { ModelSelectionDialog } from "./ModelSelectionDialog";
@@ -42,6 +42,15 @@ export function ChatHeader({
 
   const isDarkMode = theme === "dark";
   const currentModel = textModels.find(model => model.id === selectedModel);
+  
+  // Debug logging
+  console.log('ChatHeader Debug:', {
+    mounted,
+    selectedModel,
+    currentModel,
+    onModelChange: !!onModelChange,
+    textModelsLength: textModels.length
+  });
 
   const handleExportData = async () => {
     try {
@@ -137,7 +146,7 @@ export function ChatHeader({
           
           <div className="flex items-center space-x-3">
             {/* Model Selector */}
-            {mounted && currentModel && onModelChange && (
+            {mounted && selectedModel && onModelChange && (
               <Button
                 variant="outline"
                 size="sm"
@@ -146,7 +155,7 @@ export function ChatHeader({
               >
                 <Brain className="h-3 w-3 mr-2" />
                 <span className="text-xs font-medium truncate max-w-32">
-                  {currentModel.name}
+                  {currentModel?.name || selectedModel}
                 </span>
               </Button>
             )}

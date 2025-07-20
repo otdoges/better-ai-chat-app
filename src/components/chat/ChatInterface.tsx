@@ -6,8 +6,8 @@ import { ChatInput } from "./ChatInput";
 import { SettingsDialog } from "./SettingsDialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { groq, streamText } from "@/lib/ai-client";
-import { getRecommendedModel } from "@/lib/groq-models";
+import { groq, google, createGroqWithKey, createGoogleWithKey, streamText } from "@/lib/ai-client";
+import { getRecommendedModel, getModelProvider } from "@/lib/ai-models";
 import { chatDB } from "@/lib/indexeddb";
 
 interface ModelStats {
@@ -24,6 +24,7 @@ interface Message {
   role: "user" | "assistant";
   timestamp: string;
   stats?: ModelStats;
+  images?: string[]; // Base64 encoded images
 }
 
 interface Conversation {
@@ -173,25 +174,79 @@ export function ChatInterface() {
 
     try {
       // Prepare messages for the API
-      const apiMessages = conversationHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-
-      // Add the new user message
-      apiMessages.push({
-        role: "user" as const,
-        content: userMessage,
+      const apiMessages: any[] = conversationHistory.map(msg => {
+        if (msg.images && msg.images.length > 0 && msg.role === "user") {
+          return {
+            role: msg.role,
+            content: [
+              { type: "text", text: msg.content || "Please analyze these images." },
+              ...msg.images.map(image => ({
+                type: "image",
+                image: image,
+              })),
+            ],
+          };
+        }
+        return {
+          role: msg.role,
+          content: msg.content,
+        };
       });
+
+      // Add the new user message with images if present
+      const currentConversation = activeConversation;
+      const lastMessage = currentConversation?.messages[currentConversation.messages.length - 1];
+      
+      if (lastMessage?.images && lastMessage.images.length > 0) {
+        apiMessages.push({
+          role: "user" as const,
+          content: [
+            { type: "text", text: userMessage || "Please analyze these images." },
+            ...lastMessage.images.map(image => ({
+              type: "image",
+              image: image,
+            })),
+          ],
+        });
+      } else {
+        apiMessages.push({
+          role: "user" as const,
+          content: userMessage,
+        });
+      }
 
       // Check if API key is configured
       if (!import.meta.env.VITE_GROQ_API_KEY || import.meta.env.VITE_GROQ_API_KEY === 'your_groq_api_key_here') {
         throw new Error('Groq API key not configured. Please set VITE_GROQ_API_KEY in your .env file.');
       }
 
+      // Get the correct provider for the selected model
+      const provider = getModelProvider(selectedModel);
+      if (!provider) {
+        throw new Error(`Unknown model: ${selectedModel}`);
+      }
+
+      // Get custom API keys from settings if available
+      const customGroqKey = await chatDB.getSetting('groqApiKey');
+      const customGoogleKey = await chatDB.getSetting('googleApiKey');
+
+      // Create the appropriate client
+      let modelClient;
+      if (provider === 'groq') {
+        modelClient = customGroqKey ? createGroqWithKey(customGroqKey) : groq;
+      } else if (provider === 'google') {
+        if (!customGoogleKey && (!import.meta.env.VITE_GOOGLE_API_KEY || import.meta.env.VITE_GOOGLE_API_KEY === 'your_google_api_key_here')) {
+          throw new Error('Google API key not configured. Please set your Google API key in settings or add VITE_GOOGLE_API_KEY to your .env file.');
+        }
+        modelClient = customGoogleKey ? createGoogleWithKey(customGoogleKey) : google;
+      } else {
+        throw new Error(`Unsupported provider: ${provider}`);
+      }
+
       // Stream the response
       const { textStream } = await streamText({
-        model: groq(selectedModel),
+        model: modelClient(selectedModel),
+        // @ts-ignore - Multimodal messages with images
         messages: apiMessages,
         temperature: 0.7,
         maxTokens: 2000,
@@ -292,14 +347,15 @@ export function ChatInterface() {
     }
   };
 
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isLoading || !activeConversationId) return;
+  const handleSendMessage = async (content: string, images?: string[]) => {
+    if ((!content.trim() && !images?.length) || isLoading || !activeConversationId) return;
 
     const newUserMessage: Message = {
       id: Date.now().toString(),
       content,
       role: "user",
       timestamp: new Date().toLocaleString(),
+      images,
     };
 
     // Add user message

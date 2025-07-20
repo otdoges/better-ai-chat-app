@@ -12,6 +12,7 @@ interface Message {
   role: "user" | "assistant";
   timestamp: string;
   stats?: ModelStats;
+  images?: string[]; // Base64 encoded images
 }
 
 interface Conversation {

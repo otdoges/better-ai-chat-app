@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getTextModels, getProductionModels, getPreviewModels, getPreviewSystems, type GroqModel } from "@/lib/groq-models";
+import { getTextModels, getProductionModels, getPreviewModels, getPreviewSystems, type AIModel } from "@/lib/ai-models";
 import { cn } from "@/lib/utils";
 
 interface ModelSelectionDialogProps {
@@ -35,7 +35,7 @@ export function ModelSelectionDialog({
   const previewModels = getPreviewModels().filter(m => m.capabilities.includes("chat"));
   const previewSystems = getPreviewSystems();
 
-  const getModelIcon = (model: GroqModel) => {
+  const getModelIcon = (model: AIModel) => {
     if (model.capabilities.includes("vision")) return <Eye className="h-4 w-4" />;
     if (model.capabilities.includes("reasoning")) return <Brain className="h-4 w-4" />;
     if (model.capabilities.includes("tools")) return <SettingsIcon className="h-4 w-4" />;
@@ -73,7 +73,7 @@ export function ModelSelectionDialog({
     model.developer.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleModelSelect = (model: GroqModel) => {
+  const handleModelSelect = (model: AIModel) => {
     onModelSelect(model.id);
     onOpenChange(false);
   };
@@ -186,6 +186,17 @@ export function ModelSelectionDialog({
                                    model.category === "preview" ? "Preview" : "Experimental"}
                                 </span>
                               </div>
+                              
+                              <Badge 
+                                variant="outline" 
+                                className={cn(
+                                  "text-xs",
+                                  model.provider === "groq" ? "border-orange-500/50 text-orange-600 bg-orange-50 dark:bg-orange-950/20" :
+                                  "border-blue-500/50 text-blue-600 bg-blue-50 dark:bg-blue-950/20"
+                                )}
+                              >
+                                {model.provider === "groq" ? "⚡ Groq" : "🤖 Google"}
+                              </Badge>
                               
                               <div className="text-muted-foreground">
                                 by {model.developer}
