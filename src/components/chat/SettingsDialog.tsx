@@ -1,4 +1,4 @@
-import { Settings, Trash2, Moon, Sun, Key, Eye, EyeOff } from "lucide-react";
+import { Settings, Trash2, Moon, Sun, Key, Eye, EyeOff, MessageSquareText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useTheme } from "next-themes";
 import { useState, useEffect } from "react";
@@ -45,25 +46,28 @@ export function SettingsDialog({
   const [googleApiKey, setGoogleApiKey] = useState("");
   const [showGroqKey, setShowGroqKey] = useState(false);
   const [showGoogleKey, setShowGoogleKey] = useState(false);
+  const [systemPrompt, setSystemPrompt] = useState("");
 
   useEffect(() => {
     setMounted(true);
     
-    // Load saved API keys
-    const loadApiKeys = async () => {
+    // Load saved API keys and system prompt
+    const loadSettings = async () => {
       try {
         const savedGroqKey = await chatDB.getSetting('groqApiKey');
         const savedGoogleKey = await chatDB.getSetting('googleApiKey');
+        const savedSystemPrompt = await chatDB.getSetting('systemPrompt');
         
         if (savedGroqKey) setGroqApiKey(savedGroqKey);
         if (savedGoogleKey) setGoogleApiKey(savedGoogleKey);
+        if (savedSystemPrompt) setSystemPrompt(savedSystemPrompt);
       } catch (error) {
-        console.error('Failed to load API keys:', error);
+        console.error('Failed to load settings:', error);
       }
     };
     
     if (isOpen) {
-      loadApiKeys();
+      loadSettings();
     }
   }, [isOpen]);
 
@@ -81,6 +85,24 @@ export function SettingsDialog({
       toast({
         title: "Error",
         description: "Failed to save API key.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const saveSystemPrompt = async () => {
+    try {
+      await chatDB.saveSetting('systemPrompt', systemPrompt);
+      
+      toast({
+        title: "System prompt saved",
+        description: "Custom system prompt has been saved successfully.",
+      });
+    } catch (error) {
+      console.error('Failed to save system prompt:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save system prompt.",
         variant: "destructive",
       });
     }
@@ -129,6 +151,37 @@ export function SettingsDialog({
                 checked={isDarkMode}
                 onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
               />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Custom System Prompt */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium text-foreground flex items-center">
+              <MessageSquareText className="h-4 w-4 mr-2" />
+              Custom System Prompt
+            </Label>
+            <div className="space-y-2">
+              <Textarea
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                placeholder="Enter a custom system prompt to define the AI's behavior and personality..."
+                className="min-h-[100px] text-sm"
+                rows={4}
+              />
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-muted-foreground">
+                  This prompt will be sent with every message to define the AI's behavior.
+                </div>
+                <Button
+                  size="sm"
+                  onClick={saveSystemPrompt}
+                  className="text-xs"
+                >
+                  Save Prompt
+                </Button>
+              </div>
             </div>
           </div>
 

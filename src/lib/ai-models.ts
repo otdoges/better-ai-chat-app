@@ -199,6 +199,16 @@ export const AI_MODELS: AIModel[] = [
     category: "preview",
     capabilities: ["chat", "tools"],
   },
+  {
+    id: "moonshotai/kimi-k2-instruct",
+    name: "Kimi K2 Instruct",
+    description: "Moonshot AI's 1T parameter MoE model designed for agentic intelligence",
+    contextWindow: 200000,
+    provider: "groq",
+    developer: "Moonshot AI",
+    category: "preview",
+    capabilities: ["chat", "tools"],
+  },
 
   // Groq Experimental Systems
   {

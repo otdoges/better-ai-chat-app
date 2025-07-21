@@ -243,11 +243,28 @@ export function ChatInterface() {
         throw new Error(`Unsupported provider: ${provider}`);
       }
 
+      // Get custom system prompt from settings
+      const customSystemPrompt = await chatDB.getSetting('systemPrompt');
+
+      // Prepare system message if custom prompt exists
+      let systemMessage = null;
+      if (customSystemPrompt && customSystemPrompt.trim()) {
+        systemMessage = {
+          role: "system" as const,
+          content: customSystemPrompt.trim(),
+        };
+      }
+
+      // Add system message to the beginning if it exists
+      const messagesWithSystem = systemMessage 
+        ? [systemMessage, ...apiMessages]
+        : apiMessages;
+
       // Stream the response
       const { textStream } = await streamText({
         model: modelClient(selectedModel),
         // @ts-ignore - Multimodal messages with images
-        messages: apiMessages,
+        messages: messagesWithSystem,
         temperature: 0.7,
         maxTokens: 2000,
       });
