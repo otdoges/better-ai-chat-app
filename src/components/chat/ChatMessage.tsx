@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { dark } from 'react-syntax-highlighter/dist/cjs/styles/prism';
 import { ReasoningDisplay } from "./ReasoningDisplay";
 
 interface ModelStats {
@@ -117,7 +117,7 @@ const renderMessageContent = (content: string, isStreaming: boolean, toast: any)
               </Button>
               <SyntaxHighlighter
                 language={part.language}
-                style={oneDark}
+                style={dark}
                 customStyle={{
                   margin: 0,
                   borderRadius: '0.75rem',
